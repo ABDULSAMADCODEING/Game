@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game</title>
+<link rel="icon" href="./logo1.png">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e1e2e 0%, #313244 100%);
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Utility Classes (Replacing Tailwind) */
+        .flex { display: flex; }
+        .gap-4 { gap: 1rem; }
+        .mt-4 { margin-top: 1rem; }
+        .z-10 { z-index: 10; }
+        .text-xl { font-size: 1.25rem; }
+        .text-3xl { font-size: 1.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .font-bold { font-weight: bold; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .w-full { width: 100%; }
+        .text-blue-400 { color: #89b4fa; }
+        .text-red-400 { color: #f38ba8; }
+
+        /* Game Container */
+        #game-canvas {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 80px);
+            cursor: crosshair;
+        }
+
+        /* Target Style (The Copilot Icons) */
+        .target {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            user-select: none;
+            filter: drop-shadow(0 0 10px rgba(137, 180, 250, 0.5));
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .target:active {
+            transform: scale(0.8);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+        }
+
+        /* Glass UI Components */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 10px 25px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Game Over Modal */
+        #modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .btn-primary {
+            background: #89b4fa;
+            color: #1e1e2e;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-top: 15px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .btn-primary:hover {
+            background: #b4befe;
+            transform: translateY(-2px);
+        }
+
+        /* Background Particle Effect */
+        .bg-dots {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-dots"></div>
+
+    <!-- Header UI -->
+    <div class="flex gap-4 mt-4 z-10">
+        <div class="glass-panel text-xl font-bold">Score: <span id="score" class="text-blue-400">0</span></div>
+        <div class="glass-panel text-xl font-bold">Time: <span id="timer" class="text-red-400">30</span>s</div>
+    </div>
+
+    <!-- Game Area -->
+    <div id="game-canvas">
+        <!-- Targets will be generated here -->
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="modal" class="glass-panel">
+        <h2 class="text-3xl font-bold mb-2">Game Over!</h2>
+        <p class="text-lg">Your Final Score: <span id="final-score" class="font-bold text-blue-400">0</span></p>
+        <button onclick="startGame()" class="btn-primary w-full">Play Again</button>
+    </div>
+
+    <script>
+        const gameCanvas = document.getElementById('game-canvas');
+        const scoreElement = document.getElementById('score');
+        const timerElement = document.getElementById('timer');
+        const modal = document.getElementById('modal');
+        const finalScoreElement = document.getElementById('final-score');
+
+        const targetImgUrl = "./Copilot3D-70a3975b-a647-4bea-9590-97d06cd9aff3.gif";
+        const fallbackUrl = "./Copilot3D-70a3975b-a647-4bea-9590-97d06cd9aff3.gif";
+
+        let score = 0;
+        let timeLeft = 30;
+        let gameActive = false;
+        let gameTimer;
+        let spawnInterval;
+
+        function createTarget() {
+            if (!gameActive) return;
+
+            const target = document.createElement('img');
+            target.src = targetImgUrl;
+            target.alt = "Copilot";
+            target.className = "target";
+            
+            target.onerror = () => { target.src = fallbackUrl; };
+
+            const x = Math.random() * (gameCanvas.clientWidth - 80);
+            const y = Math.random() * (gameCanvas.clientHeight - 80);
+            
+            target.style.left = `${x}px`;
+            target.style.top = `${y}px`;
+
+            target.addEventListener('mousedown', (e) => {
+                if (!gameActive) return;
+                score++;
+                scoreElement.innerText = score;
+                
+                target.style.transform = "scale(0)";
+                setTimeout(() => target.remove(), 100);
+                
+                createBurst(e.clientX, e.clientY);
+            });
+
+            gameCanvas.appendChild(target);
+
+            setTimeout(() => {
+                if (target.parentElement) {
+                    target.style.opacity = '0';
+                    setTimeout(() => target.remove(), 300);
+                }
+            }, 1500);
+        }
+
+        function createBurst(x, y) {
+            const burst = document.createElement('div');
+            burst.style.position = 'fixed';
+            burst.style.left = x + 'px';
+            burst.style.top = y + 'px';
+            burst.style.width = '10px';
+            burst.style.height = '10px';
+            burst.style.background = '#89b4fa';
+            burst.style.borderRadius = '50%';
+            burst.style.pointerEvents = 'none';
+            burst.style.transform = 'translate(-50%, -50%)';
+            document.body.appendChild(burst);
+
+            burst.animate([
+                { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+                { transform: 'translate(-50%, -50%) scale(5)', opacity: 0 }
+            ], { duration: 400, easing: 'ease-out' }).onfinish = () => burst.remove();
+        }
+
+        function startGame() {
+            score = 0;
+            timeLeft = 30;
+            gameActive = true;
+            scoreElement.innerText = score;
+            timerElement.innerText = timeLeft;
+            modal.style.display = 'none';
+            gameCanvas.innerHTML = '';
+
+            clearInterval(gameTimer);
+            clearInterval(spawnInterval);
+
+            gameTimer = setInterval(() => {
+                timeLeft--;
+                timerElement.innerText = timeLeft;
+                if (timeLeft <= 0) endGame();
+            }, 1000);
+
+            spawnInterval = setInterval(createTarget, 800);
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(gameTimer);
+            clearInterval(spawnInterval);
+            finalScoreElement.innerText = score;
+            modal.style.display = 'block';
+            
+            const targets = document.querySelectorAll('.target');
+            targets.forEach(t => t.remove());
+        }
+
+        window.onload = startGame;
+
+        document.addEventListener('touchmove', (e) => {
+            if (gameActive) e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>
